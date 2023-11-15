@@ -1,5 +1,7 @@
+import datetime
+import json
 from django.shortcuts import render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseNotFound, HttpResponseRedirect, JsonResponse
 from main.forms import ProductForm
 from django.urls import reverse
 from main.models import Product
@@ -8,24 +10,21 @@ from django.core import serializers
 from django.shortcuts import redirect
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages  
-from django.contrib.auth import authenticate, login
-from django.contrib.auth import logout
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-import datetime
-from django.http import HttpResponseRedirect
-from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+
 
 @login_required(login_url='/login')
+
 def show_main(request):
     products = Product.objects.filter(user=request.user)
-
     context = {
         'name': request.user.username,
-        'class': 'PBP C',
-        'products' : products,
+        'class': 'PBP C', # Kelas PBP kamu
+        'products': products,
         'last_login': request.COOKIES['last_login'],
     }
-
     return render(request, "main.html", context)
 
 def create_product(request):
@@ -43,7 +42,6 @@ def create_product(request):
 def show_xml(request):
     data = Product.objects.all()
     return HttpResponse(serializers.serialize("xml", data), content_type="application/xml")
-
 
 def show_json(request):
     data = Product.objects.all()
@@ -112,3 +110,41 @@ def delete_product(request, id):
     product.delete()
     # Kembali ke halaman awal
     return HttpResponseRedirect(reverse('main:show_main'))
+
+def get_product_json(request):
+    product_item = Product.objects.all()
+    return HttpResponse(serializers.serialize('json', product_item))
+
+@csrf_exempt
+def add_product_ajax(request):
+    if request.method == 'POST':
+        name = request.POST.get("name")
+        price = request.POST.get("price")
+        description = request.POST.get("description")
+        user = request.user
+
+        new_product = Product(name=name, price=price, description=description, user=user)
+        new_product.save()
+
+        return HttpResponse(b"CREATED", status=201)
+
+    return HttpResponseNotFound()
+
+@csrf_exempt
+def create_product_flutter(request):
+    if request.method == 'POST':
+        
+        data = json.loads(request.body)
+
+        new_product = Product.objects.create(
+            user = request.user,
+            name = data["name"],
+            price = int(data["price"]),
+            description = data["description"]
+        )
+
+        new_product.save()
+
+        return JsonResponse({"status": "success"}, status=200)
+    else:
+        return JsonResponse({"status": "error"}, status=401)
